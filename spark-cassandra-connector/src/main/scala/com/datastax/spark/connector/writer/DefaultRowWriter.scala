@@ -1,17 +1,15 @@
 package com.datastax.spark.connector.writer
 
-import com.datastax.driver.core.{ProtocolVersion, PreparedStatement}
-import com.datastax.spark.connector.{ColumnIndex, ColumnName, ColumnRef}
 import com.datastax.spark.connector.cql.TableDef
 import com.datastax.spark.connector.mapper.ColumnMapper
-import com.datastax.spark.connector.types.TypeConverter
+import com.datastax.spark.connector.{ColumnIndex, ColumnName, ColumnRef}
 
-import scala.collection.{Map, Seq}
 import scala.collection.JavaConversions._
+import scala.collection.Seq
 
 /** A `RowWriter` suitable for saving objects mappable by a [[com.datastax.spark.connector.mapper.ColumnMapper ColumnMapper]].
   * Can save case class objects, java beans and tuples. */
-class DefaultRowWriter[T : ColumnMapper](table: TableDef, selectedColumns: Seq[String])
+class DefaultRowWriter[T: ColumnMapper](table: TableDef, selectedColumns: Seq[String])
   extends RowWriter[T] {
 
   // do not save reference to ColumnMapper in a field, because it is non Serializable
@@ -28,20 +26,12 @@ class DefaultRowWriter[T : ColumnMapper](table: TableDef, selectedColumns: Seq[S
         s"One or more properties not found in RDD data: ${missingColumns.mkString(", ")}")
   }
 
-  private def checkMissingColumns(columnNames: Seq[String]) {
-    val allColumnNames = table.allColumns.map(_.columnName)
-    val missingColumns = columnNames.toSet -- allColumnNames
-    if (missingColumns.nonEmpty)
+  private def checkUndefinedColumns(mappedColumns: Seq[String]) {
+    val undefinedColumns = selectedColumns.toSet -- mappedColumns.toSet
+    if (undefinedColumns.nonEmpty)
       throw new IllegalArgumentException(
-        s"Column(s) not found: ${missingColumns.mkString(", ")}")
-  }
-
-  private def checkMissingPrimaryKeyColumns(columnNames: Seq[String]) {
-    val primaryKeyColumnNames = table.primaryKey.map(_.columnName)
-    val missingPrimaryKeyColumns = primaryKeyColumnNames.toSet -- columnNames
-    if (missingPrimaryKeyColumns.nonEmpty)
-      throw new IllegalArgumentException(
-        s"Some primary key columns are missing in RDD or have not been selected: ${missingPrimaryKeyColumns.mkString(", ")} (required primary key columns are: $primaryKeyColumnNames and all columns are $columnNames, table is: $table)")
+        s"Missing required columns in RDD data: ${undefinedColumns.mkString(", ")}"
+      )
   }
 
   private def columnNameByRef(columnRef: ColumnRef): Option[String] = {
@@ -61,8 +51,7 @@ class DefaultRowWriter[T : ColumnMapper](table: TableDef, selectedColumns: Seq[S
   }
 
   checkMissingProperties(propertyNames)
-  checkMissingColumns(columnNames)
-  checkMissingPrimaryKeyColumns(columnNames)
+  checkUndefinedColumns(columnNames)
 
   private val columnNameToPropertyName = (columnNames zip propertyNames).toMap
   private val extractor = new PropertyExtractor(cls, propertyNames)
@@ -79,9 +68,9 @@ class DefaultRowWriter[T : ColumnMapper](table: TableDef, selectedColumns: Seq[S
 object DefaultRowWriter {
 
   def factory[T : ColumnMapper] = new RowWriterFactory[T] {
-    override def rowWriter(tableDef: TableDef, columnNames: Seq[String]) = {
+    override def rowWriter(tableDef: TableDef, columnNames: Seq[String]): RowWriter[T] = {
       new DefaultRowWriter[T](tableDef, columnNames)
     }
   }
-
 }
+
