@@ -7,15 +7,16 @@ trait DemoApp extends App with Logging {
 
   val words = "./spark-cassandra-connector-demos/simple-demos/src/main/resources/data/words"
 
-  val SparkMasterHost = "127.0.0.1"
+  val SparkMasterHost = "ec2-54-166-69-12.compute-1.amazonaws.com"
 
-  val CassandraHost = "127.0.0.1"
+  val CassandraHost = "ec2-54-144-144-29.compute-1.amazonaws.com"
+
 
   // Tell Spark the address of one Cassandra node:
   val conf = new SparkConf(true)
     .set("spark.cassandra.connection.host", CassandraHost)
     .set("spark.cleaner.ttl", "3600")
-    .setMaster("local[12]")
+    .setMaster(SparkMasterHost)
     .setAppName(getClass.getSimpleName)
 
   // Connect to the Spark cluster:
